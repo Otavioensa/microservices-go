@@ -12,7 +12,7 @@ var (
 )
 
 func main() {
-	log.Println("Starting API Gateway")
+	log.Println("Starting API Gateway at %v", httpAddr)
 
 	mux := http.NewServeMux()
 
