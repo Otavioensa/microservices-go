@@ -26,21 +26,17 @@ func (hh *HttpHandler) HandleTripPreview(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	fare := &domain.RideFareModel{
-		UserID: requestBody.UserID,
-	}
-
 	ctx := r.Context()
 
-	trip, err := hh.Service.CreateTrip(ctx, fare)
+	route, err := hh.Service.GetRoute(ctx, &requestBody.Pickup, &requestBody.Destination)
 
 	if err != nil {
-		fmt.Println("Error creating trip:", err)
+		fmt.Println("Error getting route:", err)
 	}
 
 	defer r.Body.Close()
 
-	writeJSON(w, http.StatusOK, trip)
+	writeJSON(w, http.StatusOK, route)
 
 }
 
