@@ -17,11 +17,13 @@ var (
 )
 
 func main() {
-	log.Println("Starting API Gateway at %v", httpAddr)
+	log.Println("Starting API Gateway at %s", httpAddr)
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /trip/preview", handleTripPreviw)
+	mux.HandleFunc("POST /trip/preview", enableCors(handleTripPreview))
+	mux.HandleFunc("/ws/drivers", handleDriversWebSocket)
+	mux.HandleFunc("/ws/riders", handleRidersWebSocket)
 
 	server := &http.Server{
 		Addr:    httpAddr,
