@@ -1,11 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	grpcclients "ride-sharing/services/api-gateway/grpc_clients"
 	"ride-sharing/shared/contracts"
 )
 
@@ -25,27 +25,27 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Endpoint hit: trip/preview success")
 
-	var resData any
-
-	jsonBody, _ := json.Marshal(requestBody)
-	reader := bytes.NewReader(jsonBody)
-
-	// Call trip service
-	res, err := http.Post("http://trip-service:8083/preview", "application/json", reader)
+	// there are tradeoffs to consider when stablishing a connection per request vs connecting it once
+	// when conneting it once, our whole service might get impacted if the trip service goes down
+	// while connecting per request adds some overhead to each request
+	// if we expect a high volume of requests, we might consider using a connection pool or keep-alive connections
+	// and monitor the trip service health to re-establish connections when needed
+	tripService, err := grpcclients.NewTripServiceClient()
 
 	if err != nil {
+		log.Fatal("Could not connect to trip service gRPC:", err)
 		http.Error(w, "Failed to connect to trip service", http.StatusBadRequest)
+	}
+
+	defer tripService.Close()
+
+	previewTripResponse, err := tripService.Client.PreviewTrip(r.Context(), requestBody.ToProto())
+
+	if err != nil {
+		fmt.Printf("Error calling PreviewTrip gRPC method: %v\n", err)
+		http.Error(w, "Failed to obtain trip preview", http.StatusBadRequest)
 		return
 	}
 
-	defer res.Body.Close()
-
-	if err := json.NewDecoder(res.Body).Decode(&resData); err != nil {
-		http.Error(w, "Failed to parse JSON data", http.StatusBadRequest)
-		return
-	}
-
-	fmt.Println(resData)
-
-	writeJSON(w, http.StatusOK, contracts.APIResponse{Data: resData})
+	writeJSON(w, http.StatusOK, contracts.APIResponse{Data: previewTripResponse})
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"ride-sharing/shared/types"
 
+	tripTypes "ride-sharing/services/trip-service/pkg/types"
+
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -22,5 +24,5 @@ type TripRepository interface {
 
 type TripService interface {
 	CreateTrip(ctx context.Context, fare *RideFareModel) (*TripModel, error)
-	GetRoute(ctx context.Context, pickup, destination *types.Coordinate) (*types.OSRMAPIResponse, error)
+	GetRoute(ctx context.Context, pickup, destination *types.Coordinate) (*tripTypes.OSRMAPIResponse, error)
 }

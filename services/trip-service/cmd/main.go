@@ -3,65 +3,60 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
+	"net"
 	"os"
 	"os/signal"
-	h "ride-sharing/services/trip-service/internal/infrastructure/http"
+	"ride-sharing/services/trip-service/internal/infrastructure/grpc"
 	"ride-sharing/services/trip-service/internal/infrastructure/repository"
 	"ride-sharing/services/trip-service/internal/service"
 	"ride-sharing/shared/env"
 	"syscall"
-	"time"
+
+	grpcServer "google.golang.org/grpc"
 )
 
 var (
-	httpAddr = env.GetString("HTTP_ADDR", ":8083")
+	grpcAddr = env.GetString("GRPC_ADDR", ":9093")
 )
 
 func main() {
-	log.Println("Starting Trip service at %v", httpAddr)
+	log.Println("Starting Trip service at %s", grpcAddr)
 	inmemRepo := repository.NewInMemRepository()
 	svc := service.NewService(inmemRepo)
 
-	mux := http.NewServeMux()
-
-	handler := &h.HttpHandler{Service: svc}
-
-	mux.HandleFunc("POST /preview", handler.HandleTripPreview)
-
-	server := &http.Server{
-		Addr:    httpAddr,
-		Handler: mux,
-	}
-
-	serverErrors := make(chan error, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	go func() {
-		log.Println("Trip service listening on ", httpAddr)
-		serverErrors <- server.ListenAndServe()
+		signalChannel := make(chan os.Signal, 1)
+		signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
+		// channel will block until any of the signals is received
+		<-signalChannel
+		cancel()
 	}()
 
-	shutdown := make(chan os.Signal, 1)
-	// cmd + c = interrupt
-	// sigterm = signal sent by kubernetes to terminate the app
-	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
+	lis, err := net.Listen("tcp", grpcAddr)
 
-	select {
-	case err := <-serverErrors:
-		log.Printf("Failed to start server: %v", err)
-	case sign := <-shutdown:
-		log.Printf("Received signal %v, initiating shutdown", sign)
-		// timeout of 10 seconds
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		if err := server.Shutdown(ctx); err != nil {
-			log.Print("Graceful shutdown did not complete in 10s: ", err)
-			server.Close()
-		}
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
 	}
 
-	// if err := server.ListenAndServe(); err != nil {
-	// 	log.Printf("Failed to start server: %v", err)
-	// }
+	grpcserver := grpcServer.NewServer()
+
+	grpc.NewgRPCHandler(grpcserver, svc)
+
+	log.Printf("Trip service is running on port %s", lis.Addr().String())
+
+	go func() {
+		if err := grpcserver.Serve(lis); err != nil {
+			log.Fatalf("failed to serve: %v", err)
+			cancel()
+		}
+	}()
+
+	// wait for the shutdown signal triggered by the context cancellation (cancel function called)
+	<-ctx.Done()
+	log.Println("Shutting down the Trip service...")
+	// gracefully stop the gRPC server
+	grpcserver.GracefulStop()
 }

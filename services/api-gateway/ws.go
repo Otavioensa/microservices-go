@@ -16,7 +16,7 @@ var upgrader = websocket.Upgrader{
 }
 
 func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
-	// Upgrade initial GET request to a websocket
+	// Upgrade initial GET request to a websocket connection
 	connection, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("Failed to upgrade to WebSocket: %v", err)
