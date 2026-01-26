@@ -44,8 +44,38 @@ func (grpcHandler *gRPCHandler) PreviewTrip(ctx context.Context, req *pb.Preview
 		fmt.Println("Error getting route:", err)
 		return nil, status.Errorf(codes.Internal, "failed to get route: %v", err)
 	}
+
+	// estimate ride fare prices based on the route
+	estimatedFares := grpcHandler.service.EstimatePackagesPriceWithRoute(route)
+
+	// store the ride fare estimates for the user
+	fares, err := grpcHandler.service.GenerateTripFares(ctx, estimatedFares, req.GetUserID())
+
+	if err != nil {
+		fmt.Println("Error generating trip fares:", err)
+		return nil, status.Errorf(codes.Internal, "failed to generate trip fares: %v", err)
+	}
+
 	return &pb.PreviewTripResponse{
 		Route:     route.ToProto(),
-		RideFares: []*pb.RideFare{},
+		RideFares: domain.ToRidesFareProtoList(fares),
+	}, nil
+}
+
+func (grpcHandler *gRPCHandler) CreateTrip(ctx context.Context, req *pb.CreateTripRequest) (*pb.CreateTripResponse, error) {
+	fmt.Println("Received CreateTrip request")
+
+	rideFare := &domain.RideFareModel{
+		UserID: req.UserID,
+	}
+
+	trip, err := grpcHandler.service.CreateTrip(ctx, rideFare)
+	if err != nil {
+		fmt.Println("Error creating trip:", err)
+		return nil, status.Errorf(codes.Internal, "failed to create trip: %v", err)
+	}
+
+	return &pb.CreateTripResponse{
+		TripID: trip.ID.Hex(),
 	}, nil
 }

@@ -20,7 +20,7 @@ var (
 )
 
 func main() {
-	log.Println("Starting Trip service at %s", grpcAddr)
+	log.Printf("Starting Trip service at %s", grpcAddr)
 	inmemRepo := repository.NewInMemRepository()
 	svc := service.NewService(inmemRepo)
 
@@ -35,20 +35,22 @@ func main() {
 		cancel()
 	}()
 
-	lis, err := net.Listen("tcp", grpcAddr)
+	// first step to start gRPC server by listening on the specified address via TCP
+	listener, err := net.Listen("tcp", grpcAddr)
 
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
+	// next, create a new gRPC server instance
 	grpcserver := grpcServer.NewServer()
 
+	// then register the Trip service gRPC handler to the server
 	grpc.NewgRPCHandler(grpcserver, svc)
 
-	log.Printf("Trip service is running on port %s", lis.Addr().String())
-
 	go func() {
-		if err := grpcserver.Serve(lis); err != nil {
+		// finally, start serving incoming connections
+		if err := grpcserver.Serve(listener); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 			cancel()
 		}

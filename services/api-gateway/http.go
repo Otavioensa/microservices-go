@@ -49,3 +49,40 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, contracts.APIResponse{Data: previewTripResponse})
 }
+
+func handleTripStart(w http.ResponseWriter, r *http.Request) {
+	log.Println("Endpoint hit: trip/start")
+
+	// get parameters and parse from request body
+	var requestBody startTripRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+		log.Println("Error parsing JSON data:", err)
+		http.Error(w, "Failed to parse JSON data", http.StatusBadRequest)
+		return
+	}
+
+	defer r.Body.Close()
+
+	// call rpc method
+	grpcClient, err := grpcclients.NewTripServiceClient()
+
+	if err != nil {
+		log.Fatal("Could not connect to trip service gRPC:", err)
+		http.Error(w, "Failed to connect to trip service", http.StatusBadRequest)
+		return
+	}
+
+	defer grpcClient.Close()
+
+	createTripResponse, err := grpcClient.Client.CreateTrip(r.Context(), requestBody.ToProto())
+
+	if err != nil {
+		log.Fatal("Error calling CreateTrip gRPC method: ", err)
+		http.Error(w, "Failed to create trip", http.StatusBadRequest)
+		return
+	}
+
+	// respond with created trip details
+	writeJSON(w, http.StatusOK, contracts.APIResponse{Data: createTripResponse})
+}
