@@ -3,8 +3,9 @@ package main
 import (
 	"log"
 	"net/http"
+	grpcclients "ride-sharing/services/api-gateway/grpc_clients"
 	"ride-sharing/shared/contracts"
-	"ride-sharing/shared/util"
+	pb "ride-sharing/shared/proto/driver"
 
 	"github.com/gorilla/websocket"
 )
@@ -76,23 +77,42 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type Driver struct {
-		ID                string `json:"id"`
-		Name              string `json:"name"`
-		ProfilePictureURL string `json:"profilePicture"`
-		CarPlate          string `json:"carPlate"`
-		PackageSlug       string `json:"packageSlug"`
+	driverParams := &pb.RegisterDriverRequest{
+		DriverID:    userID,
+		PackageSlug: packageSlug,
+	}
+
+	driverService, err := grpcclients.NewDriverServiceClient()
+
+	if err != nil {
+		log.Fatal("Could not connect to driver service gRPC:", err)
+		http.Error(w, "Failed to connect to driver service", http.StatusBadRequest)
+	}
+
+	defer driverService.Close()
+
+	// Closing connections
+	defer func() {
+		driverService.Client.UnregisterDriver(r.Context(), &pb.RegisterDriverRequest{
+			DriverID:    userID,
+			PackageSlug: packageSlug,
+		})
+
+		driverService.Close()
+
+		log.Println("Driver unregistered: ", userID)
+	}()
+
+	driverResponse, err := driverService.Client.RegisterDriver(r.Context(), driverParams)
+
+	if err != nil {
+		log.Fatal("Error calling RegisterDriver gRPC method:", err)
+		http.Error(w, "Failed to register driver", http.StatusBadRequest)
 	}
 
 	msg := contracts.WSMessage{
 		Type: "driver.cmd.register",
-		Data: Driver{
-			ID:                userID,
-			Name:              "John Doe",
-			ProfilePictureURL: util.GetRandomAvatar(1),
-			CarPlate:          "XYZ-1234",
-			PackageSlug:       packageSlug,
-		},
+		Data: driverResponse.Driver,
 	}
 
 	if err := connection.WriteJSON(msg); err != nil {

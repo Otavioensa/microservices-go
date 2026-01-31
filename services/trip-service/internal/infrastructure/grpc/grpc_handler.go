@@ -49,7 +49,7 @@ func (grpcHandler *gRPCHandler) PreviewTrip(ctx context.Context, req *pb.Preview
 	estimatedFares := grpcHandler.service.EstimatePackagesPriceWithRoute(route)
 
 	// store the ride fare estimates for the user
-	fares, err := grpcHandler.service.GenerateTripFares(ctx, estimatedFares, req.GetUserID())
+	fares, err := grpcHandler.service.GenerateTripFares(ctx, estimatedFares, req.GetUserID(), route)
 
 	if err != nil {
 		fmt.Println("Error generating trip fares:", err)
@@ -65,15 +65,22 @@ func (grpcHandler *gRPCHandler) PreviewTrip(ctx context.Context, req *pb.Preview
 func (grpcHandler *gRPCHandler) CreateTrip(ctx context.Context, req *pb.CreateTripRequest) (*pb.CreateTripResponse, error) {
 	fmt.Println("Received CreateTrip request")
 
-	rideFare := &domain.RideFareModel{
-		UserID: req.UserID,
+	// fetch an validate the fare
+	fare, err := grpcHandler.service.GetAndValidateFare(ctx, req.GetRideFareID(), req.GetUserID())
+
+	if err != nil {
+		fmt.Println("Error validating fare:", err)
+		return nil, status.Errorf(codes.Internal, "failed to validate fare: %v", err)
 	}
 
-	trip, err := grpcHandler.service.CreateTrip(ctx, rideFare)
+	// call create trip
+	trip, err := grpcHandler.service.CreateTrip(ctx, fare)
 	if err != nil {
 		fmt.Println("Error creating trip:", err)
 		return nil, status.Errorf(codes.Internal, "failed to create trip: %v", err)
 	}
+
+	// publish event to notify drivers of new trip request. for now, just leave a comment
 
 	return &pb.CreateTripResponse{
 		TripID: trip.ID.Hex(),
