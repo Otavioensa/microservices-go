@@ -31,6 +31,11 @@ type TripService interface {
 	CreateTrip(ctx context.Context, fare *RideFareModel) (*TripModel, error)
 	GetRoute(ctx context.Context, pickup, destination *types.Coordinate) (*tripTypes.OSRMAPIResponse, error)
 	EstimatePackagesPriceWithRoute(route *tripTypes.OSRMAPIResponse) []*RideFareModel
-	GenerateTripFares(ctx context.Context, fares []*RideFareModel, userID string, route *tripTypes.OSRMAPIResponse) ([]*RideFareModel, error)
+	GenerateTripFares(
+		ctx context.Context,
+		fares []*RideFareModel,
+		userID string,
+		route *tripTypes.OSRMAPIResponse,
+	) ([]*RideFareModel, error)
 	GetAndValidateFare(ctx context.Context, fareID, userID string) (*RideFareModel, error)
 }
