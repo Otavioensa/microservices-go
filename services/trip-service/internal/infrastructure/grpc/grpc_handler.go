@@ -84,7 +84,7 @@ func (grpcHandler *gRPCHandler) CreateTrip(ctx context.Context, req *pb.CreateTr
 	}
 
 	// publish event to notify drivers of new trip request. for now, just leave a comment
-	if err := grpcHandler.publisher.PublishTripCreate(ctx); err != nil {
+	if err := grpcHandler.publisher.PublishTripCreated(ctx, trip); err != nil {
 		fmt.Println("Error publishing trip created event:", err)
 		return nil, status.Errorf(codes.Internal, "failed to publish trip created event: %v", err)
 	}

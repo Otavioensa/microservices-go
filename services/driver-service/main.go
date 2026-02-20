@@ -56,11 +56,19 @@ func main() {
 	// then register the Driver service gRPC handler to the server
 	NewGRPCHandler(grpcserver, service)
 
+	consumer := NewTripConsumer(conn)
+
 	go func() {
 		// finally, start serving incoming connections
 		if err := grpcserver.Serve(listener); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 			cancel()
+		}
+	}()
+
+	go func() {
+		if err := consumer.Listen(); err != nil {
+			log.Fatalf("failed to listen to the message: %v", err)
 		}
 	}()
 
