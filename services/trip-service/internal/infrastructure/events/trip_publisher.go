@@ -27,6 +27,7 @@ func (tevp *TripEventPublisher) PublishTripCreated(ctx context.Context, trip *do
 	if err != nil {
 		return err
 	}
+
 	tevp.rabbitmq.PublishMessage(ctx, contracts.TripEventCreated, contracts.AmqpMessage{
 		OwnerID: trip.UserID,
 		Data:    tripEventsJSON,

@@ -26,6 +26,22 @@ type driverInMap struct {
 	// TODO: route
 }
 
+func (s *Service) FindAvailableDrivers(packageType string) []string {
+	var matchingDrivers []string
+
+	for _, d := range s.drivers {
+		if d.Driver.PackageSlug == packageType {
+			matchingDrivers = append(matchingDrivers, d.Driver.Id)
+		}
+	}
+
+	if len(matchingDrivers) == 0 {
+		return []string{}
+	}
+
+	return matchingDrivers
+}
+
 // func Regster and UnRegister
 func (s *Service) RegisterDriver(driverId string, packageSlug string) (*pb.Driver, error) {
 	s.mu.Lock()

@@ -56,7 +56,7 @@ func main() {
 	// then register the Driver service gRPC handler to the server
 	NewGRPCHandler(grpcserver, service)
 
-	consumer := NewTripConsumer(conn)
+	consumer := NewTripConsumer(conn, service)
 
 	go func() {
 		// finally, start serving incoming connections
