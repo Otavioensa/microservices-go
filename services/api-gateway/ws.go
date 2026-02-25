@@ -5,20 +5,17 @@ import (
 	"net/http"
 	grpcclients "ride-sharing/services/api-gateway/grpc_clients"
 	"ride-sharing/shared/contracts"
+	"ride-sharing/shared/messaging"
 	pb "ride-sharing/shared/proto/driver"
-
-	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
+var (
+	connManager = messaging.NewConnectionManager()
+)
 
-func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
+func handleRidersWebSocket(w http.ResponseWriter, r *http.Request, rmq *messaging.RabbitMQ) {
 	// Upgrade initial GET request to a websocket connection
-	connection, err := upgrader.Upgrade(w, r, nil)
+	connection, err := connManager.Upgrade(w, r)
 	if err != nil {
 		log.Printf("Failed to upgrade to WebSocket: %v", err)
 		return
@@ -34,6 +31,9 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("Rider connected: %s", userID)
+
+	connManager.Add(userID, connection)
+	defer connManager.Remove(userID)
 
 	for {
 		_, message, err := connection.ReadMessage()
@@ -51,9 +51,9 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 // handleDriversWebSocket handles WebSocket connections for drivers.
 // It upgrades the HTTP connection to a WebSocket, registers the driver,
 // and listens for incoming messages.
-func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
+func handleDriversWebSocket(w http.ResponseWriter, r *http.Request, rmq *messaging.RabbitMQ) {
 	// Upgrade initial GET request to a websocket
-	connection, err := upgrader.Upgrade(w, r, nil)
+	connection, err := connManager.Upgrade(w, r)
 	if err != nil {
 		log.Printf("Failed to upgrade to WebSocket: %v", err)
 		return
@@ -69,6 +69,8 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("Driver connected: %s", userID)
+
+	connManager.Add(userID, connection)
 
 	packageSlug := r.URL.Query().Get("packageSlug")
 
@@ -93,6 +95,8 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Closing connections
 	defer func() {
+		connManager.Remove(userID)
+
 		driverService.Client.UnregisterDriver(r.Context(), &pb.RegisterDriverRequest{
 			DriverID:    userID,
 			PackageSlug: packageSlug,
@@ -111,13 +115,26 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	msg := contracts.WSMessage{
-		Type: "driver.cmd.register",
+		Type: contracts.DriverCmdRegister,
 		Data: driverResponse.Driver,
 	}
 
-	if err := connection.WriteJSON(msg); err != nil {
+	if err := connManager.SendMessage(userID, msg); err != nil {
 		log.Printf("Error sending registration message: %v", err)
 		return
+	}
+
+	// Initialize queue consumer
+	queues := []string{
+		messaging.DriverCmdTripRequestQueue,
+	}
+
+	for _, queue := range queues {
+		consumer := messaging.NewQueueConsumer(rmq, connManager, queue)
+
+		if err := consumer.Start(); err != nil {
+			log.Printf("Failed to start consumer for queue %s: %v", queue, err)
+		}
 	}
 
 	for {
