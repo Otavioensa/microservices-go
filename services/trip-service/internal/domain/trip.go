@@ -6,6 +6,7 @@ import (
 
 	tripTypes "ride-sharing/services/trip-service/pkg/types"
 
+	pbd "ride-sharing/shared/proto/driver"
 	pb "ride-sharing/shared/proto/trip"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -49,4 +50,6 @@ type TripService interface {
 		route *tripTypes.OSRMAPIResponse,
 	) ([]*RideFareModel, error)
 	GetAndValidateFare(ctx context.Context, fareID, userID string) (*RideFareModel, error)
+	GetTripByID(ctx context.Context, tripID string) (*TripModel, error)
+	UpdateTrip(ctx context.Context, tripID string, status string, driver *pbd.Driver) error
 }

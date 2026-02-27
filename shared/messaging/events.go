@@ -1,6 +1,9 @@
 package messaging
 
-import pb "ride-sharing/shared/proto/trip"
+import (
+	pbd "ride-sharing/shared/proto/driver"
+	pb "ride-sharing/shared/proto/trip"
+)
 
 const (
 	FindAvailableDriversQueue      = "find_available_drivers"
@@ -11,4 +14,10 @@ const (
 
 type TripEventData struct {
 	Trip *pb.Trip `json:"trip"`
+}
+
+type DriverTripResponseData struct {
+	Driver  *pbd.Driver `json:"driver"`
+	TripID  string      `json:"trip_id"`
+	RiderID string      `json:"rider_id"`
 }
