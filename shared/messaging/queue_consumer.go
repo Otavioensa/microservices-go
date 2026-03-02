@@ -58,6 +58,7 @@ func (qc *QueueConsumer) Start() error {
 				Data: payload,
 			}
 
+			log.Printf("Received message for user %s on queue %s: %+v", userID, qc.queueName, clientMsg)
 			if err := qc.connMgr.SendMessage(userID, clientMsg); err != nil {
 				log.Printf("Failed to send message to user %s: %v", userID, err)
 			}

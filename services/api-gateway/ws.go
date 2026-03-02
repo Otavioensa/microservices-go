@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	grpcclients "ride-sharing/services/api-gateway/grpc_clients"
@@ -39,6 +40,7 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request, rmq *messagin
 	// Initialize queue consumer
 	queues := []string{
 		messaging.NotifyRiderNoDriversFoundQueue,
+		messaging.NotifyRiderDriverAssignedQueue,
 	}
 
 	for _, queue := range queues {
@@ -180,6 +182,7 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request, rmq *messagi
 			continue
 		case contracts.DriverCmdTripAccept, contracts.DriverCmdTripDecline:
 			// forward the message to rabbitmq so it can be processed
+			fmt.Println("sending driver data ", driverMsg.Data)
 			if err := rmq.PublishMessage(r.Context(), driverMsg.Type, contracts.AmqpMessage{
 				OwnerID: userID,
 				Data:    driverMsg.Data,

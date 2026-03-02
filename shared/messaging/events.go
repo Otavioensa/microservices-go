@@ -10,6 +10,7 @@ const (
 	DriverCmdTripRequestQueue      = "driver_cmd_trip_request"
 	DriverTripResponseQueue        = "driver_trip_response"
 	NotifyRiderNoDriversFoundQueue = "notify_rider_no_drivers_found"
+	NotifyRiderDriverAssignedQueue = "notify_rider_driver_assigned"
 )
 
 type TripEventData struct {
@@ -18,6 +19,6 @@ type TripEventData struct {
 
 type DriverTripResponseData struct {
 	Driver  *pbd.Driver `json:"driver"`
-	TripID  string      `json:"trip_id"`
-	RiderID string      `json:"rider_id"`
+	TripID  string      `json:"tripID"`
+	RiderID string      `json:"riderID"`
 }

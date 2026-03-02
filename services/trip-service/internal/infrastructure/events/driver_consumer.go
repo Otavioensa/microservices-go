@@ -21,7 +21,7 @@ func NewDriverConsumer(rabbitmq *messaging.RabbitMQ, service domain.TripService)
 }
 
 func (dc *driverConsumer) Listen() error {
-	return dc.rabbitmq.ConsumeMessages(messaging.FindAvailableDriversQueue, func(ctx context.Context, msg amqp091.Delivery) error {
+	return dc.rabbitmq.ConsumeMessages(messaging.DriverTripResponseQueue, func(ctx context.Context, msg amqp091.Delivery) error {
 		log.Printf("Received a reply from driver on the trip service with routing key %s", msg.RoutingKey)
 
 		var driverEvent contracts.AmqpMessage
@@ -48,6 +48,7 @@ func (dc *driverConsumer) Listen() error {
 
 		case contracts.DriverCmdTripDecline:
 			log.Println("Declined")
+			return nil
 		}
 
 		log.Printf("unknown routing key/event %s", msg.RoutingKey)
@@ -81,13 +82,13 @@ func (dc *driverConsumer) handleDriverTripAccept(ctx context.Context, payload me
 		return err
 	}
 
-	// publish event to rabbitmq that the trip has been accepted by the driver to the rider
 	mashalledTrip, err := json.Marshal(updatedTrip)
 	if err != nil {
 		log.Printf("Failed to marshal updated trip: %v", err)
 		return err
 	}
 
+	// publish event to rabbitmq that the trip has been accepted by the driver/assigned to the rider
 	if err := dc.rabbitmq.PublishMessage(ctx, contracts.TripEventDriverAssigned, contracts.AmqpMessage{
 		OwnerID: updatedTrip.UserID,
 		Data:    mashalledTrip,

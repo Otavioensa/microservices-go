@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"ride-sharing/services/trip-service/internal/domain"
 	tripTypes "ride-sharing/services/trip-service/pkg/types"
+	"ride-sharing/shared/proto/driver"
 	"ride-sharing/shared/proto/trip"
 	"ride-sharing/shared/types"
 
@@ -111,6 +112,13 @@ func (ts *service) GetAndValidateFare(ctx context.Context, fareID, userID string
 	}
 
 	return fare, nil
+}
+
+func (ts *service) GetTripByID(ctx context.Context, tripID string) (*domain.TripModel, error) {
+	return ts.repo.GetTripByID(ctx, tripID)
+}
+func (ts *service) UpdateTrip(ctx context.Context, tripID string, status string, driver *driver.Driver) error {
+	return ts.repo.UpdateTrip(ctx, tripID, status, driver)
 }
 
 func estimateFareRoute(fare *domain.RideFareModel, route *tripTypes.OSRMAPIResponse) *domain.RideFareModel {

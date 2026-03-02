@@ -37,6 +37,8 @@ type TripRepository interface {
 	CreateTrip(ctx context.Context, trip *TripModel) (*TripModel, error)
 	SaveRideFares(ctx context.Context, fare *RideFareModel) error
 	GetRideFareByID(ctx context.Context, fareID string) (*RideFareModel, error)
+	GetTripByID(ctx context.Context, tripID string) (*TripModel, error)
+	UpdateTrip(ctx context.Context, tripID string, status string, driver *pbd.Driver) error
 }
 
 type TripService interface {
