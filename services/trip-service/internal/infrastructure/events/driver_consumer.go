@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"ride-sharing/services/trip-service/internal/domain"
 	"ride-sharing/shared/contracts"
@@ -41,7 +42,7 @@ func (dc *driverConsumer) Listen() error {
 
 		switch msg.RoutingKey {
 		case contracts.DriverCmdTripAccept:
-			if err := dc.handleDriverTripAccept(context.Background(), payload); err != nil {
+			if err := dc.handleDriverTripAccepted(context.Background(), payload); err != nil {
 				log.Println("Failed to handle driver trip accept: ", err)
 				return err
 			}
@@ -61,7 +62,7 @@ func (dc *driverConsumer) Listen() error {
 	})
 }
 
-func (dc *driverConsumer) handleDriverTripAccept(ctx context.Context, payload messaging.DriverTripResponseData) error {
+func (dc *driverConsumer) handleDriverTripAccepted(ctx context.Context, payload messaging.DriverTripResponseData) error {
 	// validate that the trip exists
 	trip, err := dc.service.GetTripByID(ctx, payload.TripID)
 	if err != nil {
@@ -75,7 +76,6 @@ func (dc *driverConsumer) handleDriverTripAccept(ctx context.Context, payload me
 	}
 
 	// update the trip
-
 	if err := dc.service.UpdateTrip(ctx, payload.TripID, "accepted", payload.Driver); err != nil {
 		log.Printf("Failed to update trip: %v", err)
 		return err
@@ -98,6 +98,25 @@ func (dc *driverConsumer) handleDriverTripAccept(ctx context.Context, payload me
 		Data:    mashalledTrip,
 	}); err != nil {
 		log.Printf("Failed to publish message: %v", err)
+		return err
+	}
+
+	marshalledPayload, err := json.Marshal(messaging.PaymentTripResponseData{
+		TripID:   payload.TripID,
+		UserID:   trip.UserID,
+		DriverID: payload.Driver.Id,
+		Amount:   trip.RideFare.TotalPriceInCents,
+		Currency: "USD",
+	})
+
+	fmt.Println(" Marshalled payment payload: ", string(marshalledPayload))
+
+	if err := dc.rabbitmq.PublishMessage(ctx, contracts.PaymentCmdCreateSession,
+		contracts.AmqpMessage{
+			OwnerID: trip.UserID,
+			Data:    marshalledPayload,
+		},
+	); err != nil {
 		return err
 	}
 
