@@ -39,3 +39,9 @@ type PaymentTripResponseData struct {
 	Amount   float64 `json:"amount"`
 	Currency string  `json:"currency"`
 }
+
+type PaymentStatusUpdateData struct {
+	TripID   string `json:"tripID"`
+	UserID   string `json:"userID"`
+	DriverID string `json:"driverID"`
+}

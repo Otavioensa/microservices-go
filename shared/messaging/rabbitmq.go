@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	ExchangeName = "trip"
+	ExchangeName              = "trip"
+	NotifyPaymentSuccessQueue = "payment_success"
 )
 
 type RabbitMQ struct {
@@ -185,6 +186,14 @@ func (r *RabbitMQ) setupExchangesAndQueues() error {
 	if err := r.declareAndBindQueue(
 		NotifyPaymentSessionCreatedQueue,
 		[]string{contracts.PaymentEventSessionCreated},
+		ExchangeName,
+	); err != nil {
+		return err
+	}
+
+	if err := r.declareAndBindQueue(
+		NotifyPaymentSuccessQueue,
+		[]string{contracts.PaymentEventSuccess},
 		ExchangeName,
 	); err != nil {
 		return err

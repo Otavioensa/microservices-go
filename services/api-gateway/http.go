@@ -3,10 +3,16 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	grpcclients "ride-sharing/services/api-gateway/grpc_clients"
 	"ride-sharing/shared/contracts"
+	"ride-sharing/shared/env"
+	"ride-sharing/shared/messaging"
+
+	"github.com/stripe/stripe-go/v81"
+	"github.com/stripe/stripe-go/v81/webhook"
 )
 
 func handleTripPreview(w http.ResponseWriter, r *http.Request) {
@@ -85,4 +91,72 @@ func handleTripStart(w http.ResponseWriter, r *http.Request) {
 
 	// respond with created trip details
 	writeJSON(w, http.StatusOK, contracts.APIResponse{Data: createTripResponse})
+}
+
+func handleStripeWebhook(w http.ResponseWriter, r *http.Request, rmq *messaging.RabbitMQ) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Println("Error reading request body:", err)
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	log.Println("Endpoint hit: webhook/stripe success")
+
+	stripeWebhookKey := env.GetString("STRIPE_WEBHOOK_KEY", "")
+
+	event, err := webhook.ConstructEventWithOptions(
+		body,
+		r.Header.Get("Stripe-Signature"),
+		stripeWebhookKey,
+		webhook.ConstructEventOptions{IgnoreAPIVersionMismatch: true},
+	)
+	if err != nil {
+		log.Println("Error verifying webhook signature:", err)
+		http.Error(w, "Failed to construct Stripe event", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("Received Stripe event %v", event)
+
+	switch event.Type {
+	case "checkout.session.completed":
+		var session stripe.CheckoutSession
+		if err := json.Unmarshal(event.Data.Raw, &session); err != nil {
+			log.Println("Error parsing webhook data:", err)
+			http.Error(w, "Invalid payload", http.StatusBadRequest)
+			return
+		}
+
+		payload := messaging.PaymentStatusUpdateData{
+			TripID:   session.Metadata["trip_id"],
+			UserID:   session.Metadata["user_id"],
+			DriverID: session.Metadata["driver_id"],
+		}
+
+		payloadBytes, err := json.Marshal(payload)
+		if err != nil {
+			log.Println("Error marshaling payload:", err)
+			http.Error(w, "Failed to process webhook", http.StatusInternalServerError)
+			return
+		}
+
+		message := contracts.AmqpMessage{
+			OwnerID: session.Metadata["user_id"],
+			Data:    payloadBytes,
+		}
+
+		if err := rmq.PublishMessage(
+			r.Context(),
+			contracts.PaymentEventSuccess,
+			message,
+		); err != nil {
+			log.Println("Error publishing message to RabbitMQ:", err)
+			http.Error(w, "Failed to process webhook", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	writeJSON(w, http.StatusOK, contracts.APIResponse{Data: "Webhook received"})
 }

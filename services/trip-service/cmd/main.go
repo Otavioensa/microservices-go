@@ -12,6 +12,7 @@ import (
 	"ride-sharing/services/trip-service/internal/service"
 	"ride-sharing/shared/env"
 	"ride-sharing/shared/messaging"
+	"ride-sharing/shared/tracing"
 	"syscall"
 
 	grpcServer "google.golang.org/grpc"
@@ -28,6 +29,20 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Initialize tracing
+	tracingCfg := tracing.Config{
+		ServiceName:    "trip-service",
+		Environment:    env.GetString("ENVIRONMENT", "development"),
+		JaegerEndpoint: env.GetString("JAEGER_ENDPOINT", "http://jaeger:14268/api/traces"),
+	}
+
+	shtdwn, err := tracing.InitTracer(tracingCfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize tracer: %v", err)
+	}
+
+	defer shtdwn(ctx)
 
 	go func() {
 		signalChannel := make(chan os.Signal, 1)
@@ -66,6 +81,9 @@ func main() {
 
 	// then register the Trip service gRPC handler to the server
 	grpc.NewgRPCHandler(grpcserver, svc, publisher)
+
+	paymentConsumer := events.NewPaymentConsumer(rmq, svc)
+	go paymentConsumer.Listen()
 
 	go func() {
 		// finally, start serving incoming connections

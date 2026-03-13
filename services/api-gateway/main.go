@@ -11,6 +11,7 @@ import (
 
 	"ride-sharing/shared/env"
 	"ride-sharing/shared/messaging"
+	"ride-sharing/shared/tracing"
 )
 
 var (
@@ -19,6 +20,22 @@ var (
 
 func main() {
 	log.Println("Starting API Gateway at %s", httpAddr)
+
+	// Initialize tracing
+	tracingCfg := tracing.Config{
+		ServiceName:    "api-gateway",
+		Environment:    env.GetString("ENVIRONMENT", "development"),
+		JaegerEndpoint: env.GetString("JAEGER_ENDPOINT", "http://jaeger:14268/api/traces"),
+	}
+
+	shtdwn, err := tracing.InitTracer(tracingCfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize tracer: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer shtdwn(ctx)
 
 	mux := http.NewServeMux()
 
@@ -39,6 +56,10 @@ func main() {
 	})
 	mux.HandleFunc("/ws/riders", func(w http.ResponseWriter, r *http.Request) {
 		handleRidersWebSocket(w, r, conn)
+	})
+
+	mux.HandleFunc("POST /webhook/stripe", func(w http.ResponseWriter, r *http.Request) {
+		handleStripeWebhook(w, r, conn)
 	})
 
 	server := &http.Server{
