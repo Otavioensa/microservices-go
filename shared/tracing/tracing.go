@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Config struct {
@@ -64,6 +65,10 @@ func newTraceProvider(cfg Config, exporter sdktrace.SpanExporter) (*sdktrace.Tra
 	)
 
 	return traceProvider, nil
+}
+
+func GetTracer(name string) trace.Tracer {
+	return otel.GetTracerProvider().Tracer(name)
 }
 
 func newExporter(jaegerEndpoint string) (sdktrace.SpanExporter, error) {

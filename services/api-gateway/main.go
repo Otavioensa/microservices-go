@@ -49,18 +49,18 @@ func main() {
 
 	defer conn.Close()
 
-	mux.HandleFunc("POST /trip/preview", enableCors(handleTripPreview))
-	mux.HandleFunc("POST /trip/start", enableCors(handleTripStart))
-	mux.HandleFunc("/ws/drivers", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("POST /trip/preview", tracing.WrapHandlerFunc(enableCors(handleTripPreview), "/trip/preview"))
+	mux.Handle("POST /trip/start", tracing.WrapHandlerFunc(enableCors(handleTripStart), "/trip/start"))
+	mux.Handle("/ws/drivers", tracing.WrapHandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleDriversWebSocket(w, r, conn)
-	})
-	mux.HandleFunc("/ws/riders", func(w http.ResponseWriter, r *http.Request) {
+	}, "/ws/drivers"))
+	mux.Handle("/ws/riders", tracing.WrapHandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleRidersWebSocket(w, r, conn)
-	})
+	}, "/ws/riders"))
 
-	mux.HandleFunc("POST /webhook/stripe", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("POST /webhook/stripe", tracing.WrapHandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handleStripeWebhook(w, r, conn)
-	})
+	}, "/webhook/stripe"))
 
 	server := &http.Server{
 		Addr:    httpAddr,

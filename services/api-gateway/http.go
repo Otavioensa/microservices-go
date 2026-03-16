@@ -11,11 +11,20 @@ import (
 	"ride-sharing/shared/env"
 	"ride-sharing/shared/messaging"
 
+	"ride-sharing/shared/tracing"
+
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/webhook"
 )
 
+var tracer = tracing.GetTracer("api-gateway")
+
 func handleTripPreview(w http.ResponseWriter, r *http.Request) {
+	// this span was manually created just to show how to create spans in non-instrumented code,
+	// but since we are using the otelhttp middleware, a span is automatically created for each incoming
+	// request and we can use it to create child spans for our gRPC calls or any other operations we want to trace
+	ctx, span := tracer.Start(r.Context(), "handleTripPreview")
+	defer span.End()
 	var requestBody previewTripRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
@@ -45,7 +54,7 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 
 	defer tripService.Close()
 
-	previewTripResponse, err := tripService.Client.PreviewTrip(r.Context(), requestBody.ToProto())
+	previewTripResponse, err := tripService.Client.PreviewTrip(ctx, requestBody.ToProto())
 
 	if err != nil {
 		fmt.Printf("Error calling PreviewTrip gRPC method: %v\n", err)
@@ -57,6 +66,8 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleTripStart(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracer.Start(r.Context(), "handleTripStart")
+	defer span.End()
 	log.Println("Endpoint hit: trip/start")
 
 	// get parameters and parse from request body
@@ -81,7 +92,7 @@ func handleTripStart(w http.ResponseWriter, r *http.Request) {
 
 	defer grpcClient.Close()
 
-	createTripResponse, err := grpcClient.Client.CreateTrip(r.Context(), requestBody.ToProto())
+	createTripResponse, err := grpcClient.Client.CreateTrip(ctx, requestBody.ToProto())
 
 	if err != nil {
 		log.Fatal("Error calling CreateTrip gRPC method: ", err)
@@ -94,6 +105,8 @@ func handleTripStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleStripeWebhook(w http.ResponseWriter, r *http.Request, rmq *messaging.RabbitMQ) {
+	ctx, span := tracer.Start(r.Context(), "handleStripeWebhook")
+	defer span.End()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Println("Error reading request body:", err)
@@ -148,7 +161,7 @@ func handleStripeWebhook(w http.ResponseWriter, r *http.Request, rmq *messaging.
 		}
 
 		if err := rmq.PublishMessage(
-			r.Context(),
+			ctx,
 			contracts.PaymentEventSuccess,
 			message,
 		); err != nil {
