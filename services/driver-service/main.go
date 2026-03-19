@@ -66,7 +66,7 @@ func main() {
 	defer conn.Close()
 
 	// next, create a new gRPC server instance
-	grpcserver := grpcServer.NewServer()
+	grpcserver := grpcServer.NewServer(tracing.WithTracingInterceptors()...)
 
 	// then register the Driver service gRPC handler to the server
 	NewGRPCHandler(grpcserver, service)

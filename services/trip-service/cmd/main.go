@@ -77,7 +77,7 @@ func main() {
 	go driverConsumer.Listen()
 
 	// next, create a new gRPC server instance
-	grpcserver := grpcServer.NewServer()
+	grpcserver := grpcServer.NewServer(tracing.WithTracingInterceptors()...)
 
 	// then register the Trip service gRPC handler to the server
 	grpc.NewgRPCHandler(grpcserver, svc, publisher)

@@ -3,6 +3,7 @@ package grpcclients
 import (
 	"log"
 	pb "ride-sharing/shared/proto/driver"
+	"ride-sharing/shared/tracing"
 
 	"ride-sharing/shared/env"
 
@@ -27,9 +28,14 @@ func (tsc *driverServiceClient) Close() {
 func NewDriverServiceClient() (*driverServiceClient, error) {
 	driverServiceURL := env.GetString("DRIVER_SERVICE_URL", "driver-service:9092")
 
+	dialOptions := append(
+		tracing.DialOptionsWithTracing(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+
 	// create gRPC connection with the driver service
 	// using insecure credentials for simplicity; TODO: in production, use TLS
-	conn, err := grpc.NewClient(driverServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(driverServiceURL, dialOptions...)
 	if err != nil {
 		return nil, err
 	}

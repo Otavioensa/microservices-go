@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"ride-sharing/shared/contracts"
+	"ride-sharing/shared/tracing"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -75,15 +76,20 @@ func (rmq *RabbitMQ) ConsumeMessages(queueName string, handler MessageHandler) e
 
 	go func() {
 		for msg := range msgs {
-			log.Printf("Received a message: %s", msg.Body)
+			if err := tracing.TracedConsumer(msg, func(ctx context.Context, d amqp.Delivery) error {
+				log.Printf("Received a message: %s", msg.Body)
 
-			if err := handler(context.Background(), msg); err != nil {
-				log.Println("Failed to handle message: ", err)
-				msg.Nack(false, false)
-				continue
+				if err := handler(context.Background(), msg); err != nil {
+					log.Println("Failed to handle message: ", err)
+					msg.Nack(false, false)
+					return err
+				}
+
+				msg.Ack(false)
+				return nil
+			}); err != nil {
+				log.Printf("Error processing message: %v", err)
 			}
-
-			msg.Ack(false)
 		}
 	}()
 
@@ -98,16 +104,13 @@ func (rmq *RabbitMQ) PublishMessage(ctx context.Context, routingKey string, mess
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
 
-	return rmq.Channel.PublishWithContext(ctx,
-		ExchangeName, // exchange
-		routingKey,   // routing key
-		false,        // mandatory
-		false,        // immediate
-		amqp.Publishing{
-			ContentType:  "text/plain",
-			Body:         jsonMessage,
-			DeliveryMode: amqp.Persistent,
-		})
+	msg := amqp.Publishing{
+		DeliveryMode: amqp.Persistent,
+		ContentType:  "application/json",
+		Body:         jsonMessage,
+	}
+
+	return tracing.TracedPublisher(ctx, routingKey, ExchangeName, msg, rmq.publish)
 }
 
 func (r *RabbitMQ) Close() {
@@ -118,6 +121,17 @@ func (r *RabbitMQ) Close() {
 	if r.Channel != nil {
 		r.Channel.Close()
 	}
+}
+
+func (rmq *RabbitMQ) publish(ctx context.Context, routingKey, exchange string, message amqp.Publishing) error {
+	fmt.Printf("Publishing message to exchange %s with routing key %s: %s\n", exchange, routingKey, string(message.Body))
+	return rmq.Channel.PublishWithContext(ctx,
+		exchange,   // exchange
+		routingKey, // routing key
+		false,      // mandatory
+		false,      // immediate
+		message,
+	)
 }
 
 func (r *RabbitMQ) setupExchangesAndQueues() error {

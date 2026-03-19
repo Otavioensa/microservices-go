@@ -22,23 +22,24 @@ spec:
           readinessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "check_running"]
-            initialDelaySeconds: 20
+            initialDelaySeconds: 60
             periodSeconds: 10
             timeoutSeconds: 15
-            failureThreshold: 3
+            failureThreshold: 6
           livenessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "check_running"]
-            initialDelaySeconds: 60
+            initialDelaySeconds: 180
             periodSeconds: 30
             timeoutSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
               memory: "512Mi"
-              cpu: "250m"
+              cpu: "500m"
             limits:
               memory: "512Mi"
-              cpu: "250m"
+              cpu: "500m"
           env:
             - name: RABBITMQ_DEFAULT_USER
               valueFrom:

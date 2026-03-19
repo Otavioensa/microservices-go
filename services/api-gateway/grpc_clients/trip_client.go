@@ -3,6 +3,7 @@ package grpcclients
 import (
 	"log"
 	pb "ride-sharing/shared/proto/trip"
+	"ride-sharing/shared/tracing"
 
 	"ride-sharing/shared/env"
 
@@ -27,9 +28,14 @@ func (tsc *tripServiceClient) Close() {
 func NewTripServiceClient() (*tripServiceClient, error) {
 	tripServiceURL := env.GetString("TRIP_SERVICE_URL", "trip-service:9093")
 
+	dialOptions := append(
+		tracing.DialOptionsWithTracing(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+
 	// create gRPC connection with the trip service
 	// using insecure credentials for simplicity; in production, use TLS
-	conn, err := grpc.NewClient(tripServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(tripServiceURL, dialOptions...)
 	if err != nil {
 		return nil, err
 	}
