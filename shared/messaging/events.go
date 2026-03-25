@@ -13,6 +13,7 @@ const (
 	NotifyRiderDriverAssignedQueue   = "notify_rider_driver_assigned"
 	PaymentTripResponseQueue         = "payment_trip_response"
 	NotifyPaymentSessionCreatedQueue = "notify_payment_session_created"
+	DeadLetterQueue                  = "dead_letter_queue"
 )
 
 type TripEventData struct {

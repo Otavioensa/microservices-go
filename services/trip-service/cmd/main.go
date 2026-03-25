@@ -10,6 +10,7 @@ import (
 	"ride-sharing/services/trip-service/internal/infrastructure/grpc"
 	"ride-sharing/services/trip-service/internal/infrastructure/repository"
 	"ride-sharing/services/trip-service/internal/service"
+	"ride-sharing/shared/db"
 	"ride-sharing/shared/env"
 	"ride-sharing/shared/messaging"
 	"ride-sharing/shared/tracing"
@@ -24,8 +25,6 @@ var (
 
 func main() {
 	log.Printf("Starting Trip service at %s", grpcAddr)
-	inmemRepo := repository.NewInMemRepository()
-	svc := service.NewService(inmemRepo)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -44,6 +43,17 @@ func main() {
 
 	defer shtdwn(ctx)
 
+	// Initialize MongoDB
+	mongoClient, err := db.NewMongoClient(ctx, db.NewMongoDefaultConfig())
+	if err != nil {
+		log.Fatalf("Failed to initialize MongoDB, err: %v", err)
+	}
+	defer mongoClient.Disconnect(ctx)
+
+	mongoDb := db.GetDatabase(mongoClient, db.NewMongoDefaultConfig())
+
+	log.Printf(mongoDb.Name())
+
 	go func() {
 		signalChannel := make(chan os.Signal, 1)
 		signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
@@ -51,6 +61,9 @@ func main() {
 		<-signalChannel
 		cancel()
 	}()
+
+	mongoDBRepo := repository.NewMongoRepository(mongoDb)
+	svc := service.NewService(mongoDBRepo)
 
 	// first step to start gRPC server by listening on the specified address via TCP
 	listener, err := net.Listen("tcp", grpcAddr)
